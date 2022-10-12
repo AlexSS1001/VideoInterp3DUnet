@@ -1,0 +1,25 @@
+# Training database
+DATABASE_TRAIN:
+  db_path: "/mnt/f/Projects/video_interp_pl/DB/vimeo_septuplet"
+
+  train_h5_db_path: "/mnt/d/vimeo_septuplet_h5_pregen"
+  train_list: "sep_trainlist.txt"
+  valid_h5_db_path: "/mnt/d/vimeo_septuplet_h5_pregen_valid"
+  valid_list: "sep_testlist.txt"
+
+  shards: 150
+  crop_w: 224
+  crop_h: 224
+
+# Training characteristics
+TRAIN_PARAMS:
+# hyperparameters
+  num_workers: 8
+  batch_size: 32
+  epochs: 20
+  lr: 1e-4
+  weight_decay: 1e-8
+  
+  # locations
+  weights_dir: "weights"
+  save_freq: 1
