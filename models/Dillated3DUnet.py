@@ -12,18 +12,29 @@ class small_conv_block(nn.Module):
     """
     Convolution Block
     """
+
     def __init__(self, in_ch, out_ch, do_batch_norm=False):
         super(small_conv_block, self).__init__()
         self.do_batch_norm = do_batch_norm
         if self.do_batch_norm is False:
             self.conv = nn.Sequential(
-                nn.Conv3d(in_ch, out_ch, kernel_size=(5, 3, 3), stride=(1, 1, 1), padding=(2, 1, 1), dilation=(1,1,1), bias=True),
-                nn.ReLU(inplace=True))
+                nn.Conv3d(
+                    in_ch,
+                    out_ch,
+                    kernel_size=(5, 3, 3),
+                    stride=(1, 1, 1),
+                    padding=(2, 1, 1),
+                    dilation=(1, 1, 1),
+                    bias=True,
+                ),
+                nn.ReLU(inplace=True),
+            )
         else:
             self.conv = nn.Sequential(
                 nn.Conv3d(in_ch, out_ch, kernel_size=3, stride=1, padding=1, bias=True),
                 nn.BatchNorm2d(out_ch),
-                nn.ReLU(inplace=True))
+                nn.ReLU(inplace=True),
+            )
 
     def forward(self, x):
         x = self.conv(x)
@@ -34,20 +45,31 @@ class up_conv(nn.Module):
     """
     Up Convolution Block
     """
+
     def __init__(self, in_ch, out_ch, do_batch_norm=False):
         super(up_conv, self).__init__()
         self.do_batch_norm = do_batch_norm
         if self.do_batch_norm is False:
             self.up = nn.Sequential(
                 nn.Upsample(scale_factor=(1, 2, 2)),
-                nn.Conv3d(in_ch, out_ch, kernel_size=(5, 3, 3), stride=(1, 1, 1), padding=(2, 1, 1), dilation=(1,1,1), bias=True),
-                nn.ReLU(inplace=True))
+                nn.Conv3d(
+                    in_ch,
+                    out_ch,
+                    kernel_size=(5, 3, 3),
+                    stride=(1, 1, 1),
+                    padding=(2, 1, 1),
+                    dilation=(1, 1, 1),
+                    bias=True,
+                ),
+                nn.ReLU(inplace=True),
+            )
         else:
             self.up = nn.Sequential(
                 nn.Upsample(scale_factor=2),
                 nn.Conv3d(in_ch, out_ch, kernel_size=3, stride=1, padding=1, bias=True),
                 nn.BatchNorm2d(out_ch),
-                nn.LeakyReLU(negative_slope=0.2, inplace=True) )
+                nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            )
 
     def forward(self, x):
         x = self.up(x)
@@ -58,6 +80,7 @@ class Attention_block(nn.Module):
     """
     Attention Block
     """
+
     def __init__(self, F_g, F_l, F_int, do_batch_norm=False):
         super(Attention_block, self).__init__()
         self.do_batch_norm = do_batch_norm
@@ -72,23 +95,23 @@ class Attention_block(nn.Module):
 
             self.psi = nn.Sequential(
                 nn.Conv3d(F_int, 1, kernel_size=1, stride=1, padding=0, bias=True),
-                nn.Tanh()
+                nn.Tanh(),
             )
         else:
             self.W_g = nn.Sequential(
                 nn.Conv3d(F_l, F_int, kernel_size=1, stride=1, padding=0, bias=True),
-                nn.BatchNorm2d(F_int)
+                nn.BatchNorm2d(F_int),
             )
 
             self.W_x = nn.Sequential(
                 nn.Conv3d(F_g, F_int, kernel_size=1, stride=1, padding=0, bias=True),
-                nn.BatchNorm2d(F_int)
+                nn.BatchNorm2d(F_int),
             )
 
             self.psi = nn.Sequential(
                 nn.Conv3d(F_int, 1, kernel_size=1, stride=1, padding=0, bias=True),
                 nn.BatchNorm2d(1),
-                nn.Tanh()
+                nn.Tanh(),
             )
 
         self.relu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
@@ -107,13 +130,18 @@ class UNet3D(nn.Module):
     UNet 3D small model
     Expects 4 RGB images at input and outputs 3 interpolated RGB images
     """
-    def __init__(self, n_input_channels=3, n_output_channels=3, init_filters=16, debug=False):
+
+    def __init__(
+        self, n_input_channels=3, n_output_channels=3, init_filters=16, debug=False
+    ):
         super(UNet3D, self).__init__()
 
         n1 = init_filters
         filters = [n1, n1 * 2, n1 * 4, n1 * 8]
 
-        self.pool = nn.MaxPool3d(kernel_size=(1, 2, 2), stride=(1, 2, 2), padding=(0, 0, 0))
+        self.pool = nn.MaxPool3d(
+            kernel_size=(1, 2, 2), stride=(1, 2, 2), padding=(0, 0, 0)
+        )
 
         self.Conv1 = small_conv_block(n_input_channels, filters[0])
         self.Conv2 = small_conv_block(filters[0], filters[1])
@@ -129,10 +157,18 @@ class UNet3D(nn.Module):
         self.Up_conv3 = small_conv_block(filters[2], filters[1])
 
         self.Up2 = up_conv(filters[1], filters[0])
-        self.Att2 = Attention_block(F_g=filters[0], F_l=filters[0], F_int=int(filters[0]/2))
+        self.Att2 = Attention_block(
+            F_g=filters[0], F_l=filters[0], F_int=int(filters[0] / 2)
+        )
         self.Up_conv2 = small_conv_block(filters[1], filters[0])
 
-        self.Conv = nn.Conv3d(filters[0], n_output_channels, kernel_size=(4, 1, 1), stride=(1, 1, 1), padding=(1, 0, 0))
+        self.Conv = nn.Conv3d(
+            filters[0],
+            n_output_channels,
+            kernel_size=(4, 1, 1),
+            stride=(1, 1, 1),
+            padding=(1, 0, 0),
+        )
         if debug:
             self.network_summary()
 
@@ -174,7 +210,7 @@ class UNet3D(nn.Module):
         for layer in self.children():
             print(layer)
             for name, param in layer.named_parameters():
-                print('\t%s %s' % (name, param.shape))
+                print("\t%s %s" % (name, param.shape))
 
         total_parameters = 0
         for p in list(self.parameters()):
@@ -194,21 +230,21 @@ if __name__ == "__main__":
 
     tracing_input = torch.rand((1, 3, 4, 480, 640)).to(device)
     model = torch.jit.trace(model, tracing_input)
-    model =  torch.jit.freeze(model)
+    model = torch.jit.freeze(model)
 
     torch.backends.cudnn.benchmark = True
     for batch_size in range(1, 4):
         tracing_input = torch.rand((batch_size, 3, 4, 480, 640)).to(device)
 
         repetitions = 10000
-        timings=np.zeros((repetitions,1))
-        print('Running inference on {}'.format(device))
+        timings = np.zeros((repetitions, 1))
+        print("Running inference on {}".format(device))
 
-        if 'cpu' == device:
-            #CPU-WARM-UP
+        if "cpu" == device:
+            # CPU-WARM-UP
             for _ in range(10):
                 _ = model(tracing_input)
-                    # MEASURE PERFORMANCE
+                # MEASURE PERFORMANCE
             with torch.no_grad():
                 for rep, _ in zip(range(repetitions), tqdm(range(repetitions))):
                     start = time.time()
@@ -216,15 +252,17 @@ if __name__ == "__main__":
                     end = time.time()
                     # WAIT FOR GPU SYNC
                     torch.cuda.synchronize()
-                    curr_time = end-start
+                    curr_time = end - start
                     timings[rep] = curr_time
-            mean_syn = (np.sum(timings) / repetitions)
-            print('GPU mean sample time {.2d} ms'.format(mean_syn))
-            print('GPU total sample time {.2d} ms'.format(np.sum(timings)))
+            mean_syn = np.sum(timings) / repetitions
+            print("GPU mean sample time {.2d} ms".format(mean_syn))
+            print("GPU total sample time {.2d} ms".format(np.sum(timings)))
         else:
             # INIT LOGGERS
-            starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
-            #GPU-WARM-UP
+            starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(
+                enable_timing=True
+            )
+            # GPU-WARM-UP
             for _ in range(10):
                 _ = model(tracing_input)
             # MEASURE PERFORMANCE
@@ -238,7 +276,7 @@ if __name__ == "__main__":
                     torch.cuda.synchronize()
                     curr_time = starter.elapsed_time(ender)
                     timings[rep] = curr_time
-            mean_syn = (np.sum(timings) / repetitions)
+            mean_syn = np.sum(timings) / repetitions
 
-            print('GPU mean time {} ms for per sample'.format(mean_syn/batch_size))
-            print('GPU total time {} ms'.format(np.sum(timings)/batch_size))
+            print("GPU mean time {} ms for per sample".format(mean_syn / batch_size))
+            print("GPU total time {} ms".format(np.sum(timings) / batch_size))

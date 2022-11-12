@@ -10,26 +10,34 @@ from tqdm import tqdm
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--test_db_path', type=str, required=True, default=r'/mnt/f/Projects/video_interp_pl/DB/vimeo_septuplet')
-    parser.add_argument('--checkpoint', type=str, required=True)
-    parser.add_argument('--img-width', type=int, required=True, default=448)
-    parser.add_argument('--img-height', type=int, required=True, default=256)
+    parser.add_argument(
+        "--test_db_path",
+        type=str,
+        required=True,
+        default=r"/mnt/f/Projects/video_interp_pl/DB/vimeo_septuplet",
+    )
+    parser.add_argument("--checkpoint", type=str, required=True)
+    parser.add_argument("--img-width", type=int, required=True, default=448)
+    parser.add_argument("--img-height", type=int, required=True, default=256)
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = parse_args()
     # get device
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     # init model
     model = UNet3DLite(init_filters=32).to(device)
     model = torch.nn.DataParallel(model, device_ids=[0])
     model.load_state_dict(torch.load(args.checkpoint, map_location=device))
     model.eval()
     test_dataset = DatasetInference(args)
-    test_loader = DataLoader(dataset=test_dataset, batch_size=7, num_workers=1, pin_memory=True)
+    test_loader = DataLoader(
+        dataset=test_dataset, batch_size=7, num_workers=1, pin_memory=True
+    )
 
-    if not os.path.isdir(r'preds'):
-        os.makedirs(r'preds')
+    if not os.path.isdir(r"preds"):
+        os.makedirs(r"preds")
 
     img_index = 0
     torch.backends.cudnn.benchmark = True
@@ -49,9 +57,9 @@ if __name__ == "__main__":
             pred_1 = ToPILImage()(pred[0, :, 1, :, :])
             pred_2 = ToPILImage()(pred[0, :, 2, :, :])
 
-            pred_0.save(r'preds/pred_%5.5d.png' % img_index)
+            pred_0.save(r"preds/pred_%5.5d.png" % img_index)
             img_index += 1
-            pred_1.save(r'preds/pred_%5.5d.png' % img_index)
+            pred_1.save(r"preds/pred_%5.5d.png" % img_index)
             img_index += 1
-            pred_2.save(r'preds/pred_%5.5d.png' % img_index)
+            pred_2.save(r"preds/pred_%5.5d.png" % img_index)
             img_index += 1
