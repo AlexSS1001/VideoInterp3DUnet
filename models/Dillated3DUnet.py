@@ -1,7 +1,6 @@
 import numpy as np
 import time
 import torch
-from torch import tensor
 from torch.cuda.amp import autocast
 import torch.nn.functional as F
 
@@ -103,13 +102,13 @@ class Attention_block(nn.Module):
         return out
 
 
-class UNet3DLite(nn.Module):
+class UNet3D(nn.Module):
     """
     UNet 3D small model
     Expects 4 RGB images at input and outputs 3 interpolated RGB images
     """
-    def __init__(self, n_input_channels=3, n_output_channels=3, init_filters=16):
-        super(UNet3DLite, self).__init__()
+    def __init__(self, n_input_channels=3, n_output_channels=3, init_filters=16, debug=False):
+        super(UNet3D, self).__init__()
 
         n1 = init_filters
         filters = [n1, n1 * 2, n1 * 4, n1 * 8]
@@ -134,7 +133,8 @@ class UNet3DLite(nn.Module):
         self.Up_conv2 = small_conv_block(filters[1], filters[0])
 
         self.Conv = nn.Conv3d(filters[0], n_output_channels, kernel_size=(4, 1, 1), stride=(1, 1, 1), padding=(1, 0, 0))
-        self.network_summary()
+        if debug:
+            self.network_summary()
 
     def forward(self, x):
         e1 = self.Conv1(x)
@@ -188,17 +188,17 @@ class UNet3DLite(nn.Module):
 
 if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    #device = 'dml'
-    model = UNet3DLite(init_filters=16)
+    model = UNet3D(init_filters=16)
     model.to(device)
     model.eval()
 
-    dummy_input = torch.rand((1, 3, 4, 480, 640)).to(device)
-    model = torch.jit.trace(model, dummy_input)
+    tracing_input = torch.rand((1, 3, 4, 480, 640)).to(device)
+    model = torch.jit.trace(model, tracing_input)
+    model =  torch.jit.freeze(model)
 
-    #torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = True
     for batch_size in range(1, 4):
-        dummy_input = torch.rand((batch_size, 3, 4, 480, 640)).to(device)
+        tracing_input = torch.rand((batch_size, 3, 4, 480, 640)).to(device)
 
         repetitions = 10000
         timings=np.zeros((repetitions,1))
@@ -207,12 +207,12 @@ if __name__ == "__main__":
         if 'cpu' == device:
             #CPU-WARM-UP
             for _ in range(10):
-                _ = model(dummy_input)
+                _ = model(tracing_input)
                     # MEASURE PERFORMANCE
             with torch.no_grad():
                 for rep, _ in zip(range(repetitions), tqdm(range(repetitions))):
                     start = time.time()
-                    _ = model(dummy_input)
+                    _ = model(tracing_input)
                     end = time.time()
                     # WAIT FOR GPU SYNC
                     torch.cuda.synchronize()
@@ -226,13 +226,13 @@ if __name__ == "__main__":
             starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
             #GPU-WARM-UP
             for _ in range(10):
-                _ = model(dummy_input)
+                _ = model(tracing_input)
             # MEASURE PERFORMANCE
             with torch.no_grad():
                 for rep, _ in zip(range(repetitions), tqdm(range(repetitions))):
                     starter.record()
                     with autocast(enabled=True):
-                        out = model(dummy_input)
+                        out = model(tracing_input)
                     ender.record()
                     # WAIT FOR GPU SYNC
                     torch.cuda.synchronize()

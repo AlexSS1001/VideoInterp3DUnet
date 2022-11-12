@@ -23,3 +23,6 @@ TRAIN_PARAMS:
   # locations
   weights_dir: "weights"
   save_freq: 1
+
+MODEL:
+    filters: 16

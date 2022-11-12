@@ -21,15 +21,18 @@ if __name__ == "__main__":
     # get device
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     # init model
-    model = UNet3DLite(init_filters=32).eval().to(device)
+    model = UNet3DLite(init_filters=32).to(device)
+    model = torch.nn.DataParallel(model, device_ids=[0])
     model.load_state_dict(torch.load(args.checkpoint, map_location=device))
+    model.eval()
     test_dataset = DatasetInference(args)
-    test_loader = DataLoader(dataset=test_dataset, batch_size=7, num_workers=1)
+    test_loader = DataLoader(dataset=test_dataset, batch_size=7, num_workers=1, pin_memory=True)
 
     if not os.path.isdir(r'preds'):
         os.makedirs(r'preds')
 
     img_index = 0
+    torch.backends.cudnn.benchmark = True
     for img_seq in tqdm(test_loader):
         if img_seq.shape[0] >= 7:
             in_0 = img_seq[0, :, :, :][None, None, :, :, :]
