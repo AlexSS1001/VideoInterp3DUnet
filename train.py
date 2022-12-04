@@ -1,5 +1,6 @@
 import os
 import torch
+from tensorboardX import SummaryWriter
 from torch.cuda.amp import autocast, GradScaler
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -15,6 +16,27 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
 
 class Trainer:
     def __init__(self, config_file=None):
@@ -58,6 +80,9 @@ class Trainer:
         # create save location
         if not os.path.isdir(self.args["TRAIN_PARAMS"]["weights_dir"]):
             os.makedirs(self.args["TRAIN_PARAMS"]["weights_dir"])
+        # create logging directory
+        if not os.path.isdir(self.args["TRAIN_PARAMS"]["log_dir"]):
+            os.makedirs(self.args["TRAIN_PARAMS"]["log_dir"])
 
     @staticmethod
     def parse_config(config_file):
@@ -73,10 +98,20 @@ class Trainer:
         """
         Train model. Validate at each saved epoch
         """
+        writer_dict = {
+            'writer': SummaryWriter(log_dir=self.args['TRAIN_PARAMS']['log_dir']),
+            'train_global_steps': 0,
+            'valid_global_steps': 0,
+        }
+
+        losses_train = AverageMeter()
+        losses_valid = AverageMeter()
+
         for epoch in tqdm(range(self.args["TRAIN_PARAMS"]["epochs"])):
             print("Training epoch: {}".format(epoch))
             total_loss = 0
             self.model.train()
+            train_step = 0
             for sample in tqdm(self.train_loader):
                 # get input color images
                 in_0 = sample[:, 0, :, :, :][:, None, :, :, :]
@@ -106,6 +141,17 @@ class Trainer:
                 self.scaler.scale(loss).backward()
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
+
+                train_step += 1
+
+                losses_train.update(loss.item(), sample.size(0))
+
+                # log
+                if train_step % 10 == 0:
+                    writer = writer_dict['writer']
+                    global_steps = writer_dict['train_global_steps']
+                    writer.add_scalar('train_loss', losses_train.val, global_steps)
+                    writer_dict['train_global_steps'] = global_steps + 1
 
             self.scheduler.step()
             print("Total loss after epoch: {} is {}".format(epoch, total_loss))
@@ -137,7 +183,14 @@ class Trainer:
                         pred = self.model.forward(net_in)
                         pred = torch.clamp(pred, 0.0, 1.0)
 
-                        total_valid_loss += self.losses(pred, gt).item()
+                        valid_loss = self.losses(pred, gt)
+                        total_valid_loss += valid_loss.item()
+                        losses_valid.update(valid_loss.item(), sample.size(0))
+
+                    writer = writer_dict['writer']
+                    global_steps = writer_dict['valid_global_steps']
+                    writer.add_scalar('valid_loss', losses_valid.avg, global_steps)
+                    writer_dict['valid_global_steps'] = global_steps + 1
 
                 print(
                     "Validation loss after epoch: {} is {}".format(

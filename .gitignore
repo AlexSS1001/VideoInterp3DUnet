@@ -5,6 +5,7 @@ weights/
 preds/
 weights_32/
 weighs_16/
+tb_logs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

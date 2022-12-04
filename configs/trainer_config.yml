@@ -14,15 +14,16 @@ DATABASE_TRAIN:
 # Training characteristics
 TRAIN_PARAMS:
 # hyperparameters
-  num_workers: 8
-  batch_size: 32
+  num_workers: 16
+  batch_size: 48
   epochs: 20
   lr: 1e-4
   weight_decay: 1e-8
   
   # locations
   weights_dir: "weights"
+  log_dir: "tb_logs"
   save_freq: 1
 
 MODEL:
-    filters: 16
+    filters: 32
